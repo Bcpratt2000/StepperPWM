@@ -23,6 +23,8 @@
 
 #define PWM_PIN 12
 
+#define POWER_LOSS_PIN 9
+
 
 // initialize the steppers
 Stepper XStepper(X_STEPS_PER_REVOLUTION, X_PULSE_PIN, X_DIRECTION_PIN);
@@ -40,7 +42,8 @@ void setup() {
   Serial.begin(9600);
 
   pinMode(PWM_PIN, INPUT);
-  
+  pinMode(POWER_LOSS_PIN, INPUT);
+
   XStepper.setSpeed(250);
   YStepper.setSpeed(250);
   ZStepper.setSpeed(250);
@@ -49,71 +52,78 @@ void setup() {
 
 
 void loop() {
-  //Serial debugging
-  switch(Serial.peek()){
-  case 'm':
-    target = Serial.parseInt();
-    Serial.println("moving to " + String(target));
-    setXPosition(target);
-    break;
-  case 'r':
-    Serial.println(String(xPosition));
-    break;
-  case 's':
-    target = Serial.parseInt();
-    XStepper.setSpeed(target);
-    Serial.println("set speed to " + String(target));
-  default:
-    break;
-  }
-  Serial.read();
+  //check if power is going to be lost
+  if (digitalRead(POWER_LOSS_PIN) == HIGH) {
 
-  //respond to pwm
-  int pulseLength = pulseIn(PWM_PIN, HIGH, 50000)/10;
-  pulseLength*=10;
-  if(pulseLength>=1000 && pulseLength<=2000){
-    setXPosition(map(pulseLength, 1000, 2000, X_MIN, X_MAX));
-  }
-  else if(pulseLength<1000){
+    //Serial debugging
+    switch (Serial.peek()) {
+      case 'm':
+        target = Serial.parseInt();
+        Serial.println("moving to " + String(target));
+        setXPosition(target);
+        break;
+      case 'r':
+        Serial.println(String(xPosition));
+        break;
+      case 's':
+        target = Serial.parseInt();
+        XStepper.setSpeed(target);
+        Serial.println("set speed to " + String(target));
+      default:
+        break;
+    }
+    Serial.read();
+
+    //respond to pwm
+    int pulseLength = pulseIn(PWM_PIN, HIGH, 50000);
+    if (pulseLength >= 1000 && pulseLength <= 2000) {
+      setXPosition(map(pulseLength, 1000, 2000, X_MIN, X_MAX));
+    }
+    else if (pulseLength < 1000) {
+      setXPosition(X_MIN);
+    }
+    else {
+      setXPosition(X_MAX);
+    }
+
+  } else {
+    Serial.println("PowerLost");
     setXPosition(X_MIN);
   }
-  else{
-    setXPosition(X_MAX);
-  }
-  
-  
+
+
   delay(10);
 }
 
 
-void setXPosition(long targetPosition){
-  if(abs(targetPosition-xPosition) > 100){
-    XStepper.step(xPosition-targetPosition);
+void setXPosition(long targetPosition) {
+  if (abs(targetPosition - xPosition) > 100) {
+    XStepper.step(xPosition - targetPosition);
     xPosition = targetPosition;
   }
-  
+
 }
 
-void setYPosition(long targetPosition){
+void setYPosition(long targetPosition) {
 
-  YStepper.step(yPosition-targetPosition);
+  YStepper.step(yPosition - targetPosition);
   yPosition = targetPosition;
-  
+
 }
 
-void setZPosition(long targetPosition){
+void setZPosition(long targetPosition) {
 
-  ZStepper.step(zPosition-targetPosition);
+  ZStepper.step(zPosition - targetPosition);
   zPosition = targetPosition;
-  
+
 }
 
-int readPWM(int inputPin){
+int readPWM(int inputPin) {
   unsigned long highTime = pulseIn(inputPin, HIGH);
   unsigned long lowTime = pulseIn(inputPin, LOW);
   unsigned long cycleTime = highTime + lowTime;
   float dutyCycle = (float)highTime / float(cycleTime);
-  return (int)(dutyCycle*(255/100));
+  return (int)(dutyCycle * (255 / 100));
 }
 
 
