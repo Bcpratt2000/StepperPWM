@@ -2,14 +2,14 @@
 
 #define MAX_SPEED 300
 
-#define X_STEPS_PER_REVOLUTION 3125
+#define X_STEPS_PER_REVOLUTION 4000
 #define Y_STEPS_PER_REVOLUTION 3125
 #define Z_STEPS_PER_REVOLUTION 3125
 
 #define X_PULSE_PIN 2
 #define X_DIRECTION_PIN 5
 #define X_MIN 0
-#define X_MAX 6250
+#define X_MAX 31250
 
 #define Y_PULSE_PIN 3
 #define Y_DIRECTION_PIN 6
@@ -44,9 +44,7 @@ void setup() {
   pinMode(PWM_PIN, INPUT);
   pinMode(POWER_LOSS_PIN, INPUT);
 
-  XStepper.setSpeed(250);
-  YStepper.setSpeed(250);
-  ZStepper.setSpeed(250);
+  XStepper.setSpeed(50);
 }
 
 
@@ -57,10 +55,12 @@ void loop() {
 
     //Serial debugging
     switch (Serial.peek()) {
+      case -1:
+        break;
       case 'm':
         target = Serial.parseInt();
         Serial.println("moving to " + String(target));
-        setXPosition(target);
+        //        setXPosition(target);
         break;
       case 'r':
         Serial.println(String(xPosition));
@@ -77,46 +77,58 @@ void loop() {
     //respond to pwm
     int pulseLength = pulseIn(PWM_PIN, HIGH, 50000);
     if (pulseLength >= 1000 && pulseLength <= 2000) {
-      setXPosition(map(pulseLength, 1000, 2000, X_MIN, X_MAX));
+      moveTowardXPosition(map(pulseLength, 1000, 2000, X_MIN, X_MAX));
     }
     else if (pulseLength < 1000) {
-      setXPosition(X_MIN);
+      moveTowardXPosition(X_MIN);
     }
     else {
-      setXPosition(X_MAX);
+      moveTowardXPosition(X_MAX);
     }
 
   } else {
-    Serial.println("PowerLost");
+    Serial.println("Power Lost");
     setXPosition(X_MIN);
   }
 
 
-  delay(10);
+  delayMicroseconds(10);
 }
 
 
 void setXPosition(long targetPosition) {
-  if (abs(targetPosition - xPosition) > 100) {
-    XStepper.step(xPosition - targetPosition);
-    xPosition = targetPosition;
+  XStepper.step(targetPosition - xPosition);
+  xPosition = targetPosition;
+}
+
+void moveTowardXPosition(long targetPosition) {
+  long difference = targetPosition - xPosition;
+  long stepAmount = 0;
+  if (abs(difference) > ((X_MAX - X_MIN)/100)) {
+    if (difference > 0) {
+      stepAmount = abs(difference) > 200 ? 200 : difference;
+    } else {
+      stepAmount = abs(difference) > 200 ? -200 : difference;
+    }
+    XStepper.step(stepAmount);
+    xPosition += stepAmount;
   }
 
 }
 
-void setYPosition(long targetPosition) {
-
-  YStepper.step(yPosition - targetPosition);
-  yPosition = targetPosition;
-
-}
-
-void setZPosition(long targetPosition) {
-
-  ZStepper.step(zPosition - targetPosition);
-  zPosition = targetPosition;
-
-}
+//void setYPosition(long targetPosition) {
+//
+//  YStepper.step(yPosition - targetPosition);
+//  yPosition = targetPosition;
+//
+//}
+//
+//void setZPosition(long targetPosition) {
+//
+//  ZStepper.step(zPosition - targetPosition);
+//  zPosition = targetPosition;
+//
+//}
 
 int readPWM(int inputPin) {
   unsigned long highTime = pulseIn(inputPin, HIGH);
